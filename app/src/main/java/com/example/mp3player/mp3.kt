@@ -1,4 +1,5 @@
 package com.example.mp3player
+
 import android.media.MediaPlayer
 import androidx.core.content.ContextCompat
 import android.content.pm.PackageManager
@@ -20,31 +21,49 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import com.example.mp3player.R
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 class mp3 : AppCompatActivity() {
 
     private lateinit var mediaPlayer: MediaPlayer
     private lateinit var seekBar: SeekBar
     private lateinit var currentTrackText: TextView
+    private lateinit var trackTimeText: TextView
     private lateinit var tracksList: ListView
     private lateinit var playButton: Button
     private lateinit var pauseButton: Button
     private lateinit var stopButton: Button
+    private lateinit var prevButton: Button
+    private lateinit var nextButton: Button
 
     private var audioFiles = mutableListOf<String>()
-    private var currentTrackPath: String? = null
+    private var currentTrackIndex = -1
     private val handler = Handler(Looper.getMainLooper())
     private val updateSeekBar = object : Runnable {
         override fun run() {
             if (::mediaPlayer.isInitialized && mediaPlayer.isPlaying) {
                 seekBar.progress = mediaPlayer.currentPosition
+                updateTrackTimeText()
                 handler.postDelayed(this, 1000)
             }
         }
     }
 
+    private fun formatTime(millis: Int): String {
+        val minutes = TimeUnit.MILLISECONDS.toMinutes(millis.toLong())
+        val seconds = TimeUnit.MILLISECONDS.toSeconds(millis.toLong()) -
+                TimeUnit.MINUTES.toSeconds(minutes)
+        return String.format("%02d:%02d", minutes, seconds)
+    }
+
+    private fun updateTrackTimeText() {
+        if (::mediaPlayer.isInitialized) {
+            val current = formatTime(mediaPlayer.currentPosition)
+            val total = formatTime(mediaPlayer.duration)
+            trackTimeText.text = "$current / $total"
+        }
+    }
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -55,6 +74,7 @@ class mp3 : AppCompatActivity() {
             showPermissionExplanationDialog()
         }
     }
+
     private fun checkRealPermissionState() {
         val hasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             ContextCompat.checkSelfPermission(
@@ -75,17 +95,17 @@ class mp3 : AppCompatActivity() {
         }
     }
 
-
     private fun showPermissionExplanationDialog() {
         AlertDialog.Builder(this)
             .setTitle("Permission needed")
-            .setMessage("Please grant permission in system settings:\n\n1. Open Settings\n2. Go to Apps\n3. Select this app\n4. Tap Permissions\n5. Allow 'Media files'")
+            .setMessage("Please grant permission in system settings")
             .setPositiveButton("Open Settings") { _, _ ->
                 openAppSettings()
             }
             .setNegativeButton("Cancel", null)
             .show()
     }
+
     private fun openAppSettings() {
         val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
             data = Uri.fromParts("package", packageName, null)
@@ -106,16 +126,22 @@ class mp3 : AppCompatActivity() {
     private fun initViews() {
         seekBar = findViewById(R.id.seekBar)
         currentTrackText = findViewById(R.id.currentTrackText)
+        trackTimeText = findViewById(R.id.trackTimeText)
         tracksList = findViewById(R.id.tracksListView)
         playButton = findViewById(R.id.playButton)
         pauseButton = findViewById(R.id.pauseButton)
         stopButton = findViewById(R.id.stopButton)
+        prevButton = findViewById(R.id.prevButton)
+        nextButton = findViewById(R.id.nextButton)
     }
 
     private fun setupButtons() {
         playButton.setOnClickListener { playMusic() }
         pauseButton.setOnClickListener { pauseMusic() }
         stopButton.setOnClickListener { stopMusic() }
+
+        prevButton.setOnClickListener { playPreviousTrack() }
+        nextButton.setOnClickListener { playNextTrack() }
     }
 
     private fun setupSeekBar() {
@@ -156,9 +182,8 @@ class mp3 : AppCompatActivity() {
         tracksList.adapter = adapter
 
         tracksList.setOnItemClickListener { _, _, position, _ ->
-            currentTrackPath = audioFiles[position]
-            currentTrackText.text = File(currentTrackPath!!).name
-            prepareMediaPlayer()
+            currentTrackIndex = position
+            playSelectedTrack()
         }
     }
 
@@ -174,28 +199,58 @@ class mp3 : AppCompatActivity() {
         }
     }
 
-    private fun prepareMediaPlayer() {
+    private fun playSelectedTrack() {
+        if (currentTrackIndex in audioFiles.indices) {
+            currentTrackText.text = File(audioFiles[currentTrackIndex]).name
+            prepareMediaPlayer(audioFiles[currentTrackIndex])
+        }
+    }
+
+    private fun playNextTrack() {
+        if (audioFiles.isEmpty()) return
+
+        currentTrackIndex = if (currentTrackIndex < audioFiles.size - 1) {
+            currentTrackIndex + 1
+        } else {
+            0
+        }
+        playSelectedTrack()
+    }
+
+    private fun playPreviousTrack() {
+        if (audioFiles.isEmpty()) return
+
+        currentTrackIndex = if (currentTrackIndex > 0) {
+            currentTrackIndex - 1
+        } else {
+            audioFiles.size - 1
+        }
+        playSelectedTrack()
+    }
+
+    private fun prepareMediaPlayer(trackPath: String) {
         if (::mediaPlayer.isInitialized) {
             mediaPlayer.release()
         }
 
         mediaPlayer = MediaPlayer().apply {
-            setDataSource(currentTrackPath)
+            setDataSource(trackPath)
             prepareAsync()
             setOnPreparedListener {
                 seekBar.max = mediaPlayer.duration
+                updateTrackTimeText()
                 playMusic()
             }
             setOnCompletionListener {
-                stopMusic()
+                playNextTrack()
             }
         }
     }
 
     private fun playMusic() {
-        if (currentTrackPath != null) {
+        if (currentTrackIndex in audioFiles.indices) {
             if (!::mediaPlayer.isInitialized) {
-                prepareMediaPlayer()
+                prepareMediaPlayer(audioFiles[currentTrackIndex])
             } else {
                 mediaPlayer.start()
                 handler.post(updateSeekBar)
@@ -218,14 +273,13 @@ class mp3 : AppCompatActivity() {
             mediaPlayer.release()
             seekBar.progress = 0
             handler.removeCallbacks(updateSeekBar)
+            trackTimeText.text = "00:00 / 00:00"
         }
     }
 
     override fun onPause() {
         super.onPause()
-        if (::mediaPlayer.isInitialized && mediaPlayer.isPlaying) {
-            pauseMusic()
-        }
+        pauseMusic()
     }
 
     override fun onDestroy() {

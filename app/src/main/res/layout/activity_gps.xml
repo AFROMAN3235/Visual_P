@@ -15,7 +15,7 @@
         android:orientation="vertical"
         android:gravity="center_horizontal">
 
-        <!-- Header -->
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -24,7 +24,7 @@
             android:textStyle="bold"
             android:layout_marginBottom="24dp"/>
 
-        <!-- Location Card -->
+
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -38,7 +38,7 @@
                 android:orientation="vertical"
                 android:padding="16dp">
 
-                <!-- Latitude -->
+
                 <TextView
                     android:id="@+id/tv_lat"
                     android:layout_width="match_parent"
@@ -47,7 +47,7 @@
                     android:textSize="18sp"
                     android:layout_marginBottom="8dp"/>
 
-                <!-- Longitude -->
+
                 <TextView
                     android:id="@+id/tv_lon"
                     android:layout_width="match_parent"
@@ -56,7 +56,7 @@
                     android:textSize="18sp"
                     android:layout_marginBottom="8dp"/>
 
-                <!-- Altitude -->
+
                 <TextView
                     android:id="@+id/tv_alt"
                     android:layout_width="match_parent"
@@ -65,7 +65,7 @@
                     android:textSize="18sp"
                     android:layout_marginBottom="8dp"/>
 
-                <!-- Time -->
+
                 <TextView
                     android:id="@+id/tv_time"
                     android:layout_width="match_parent"
