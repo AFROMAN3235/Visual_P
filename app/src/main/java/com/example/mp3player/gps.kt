@@ -7,13 +7,17 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
+import android.view.View
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.cardview.widget.CardView
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
@@ -27,10 +31,15 @@ class gps : AppCompatActivity() {
     private lateinit var tvAlt: TextView
     private lateinit var tvTime: TextView
     private lateinit var btnRefresh: Button
+    private lateinit var locationContainer: CardView
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
-
-
+    private lateinit var locationHandler: Handler
+    private lateinit var timeHandler: Handler
+    private lateinit var animationHandler: Handler
+    private val locationUpdateInterval: Long = 3000
+    private val timeUpdateInterval: Long = 1000
+    private val Random = Random()
     private val locationPermissionRequest = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -39,10 +48,14 @@ class gps : AppCompatActivity() {
 
         when {
             fineLocationGranted -> {
-                getCurrentLocation()
+                startLocationUpdates()
+                startTimeUpdates()
+                startAnimation()
             }
             coarseLocationGranted -> {
-                getCurrentLocation()
+                startLocationUpdates()
+                startTimeUpdates()
+                startAnimation()
             }
             else -> {
                 Toast.makeText(this, "Разрешение на местоположение отклонено", Toast.LENGTH_SHORT).show()
@@ -58,10 +71,13 @@ class gps : AppCompatActivity() {
             initViews()
             initLocationClient()
             setupClickListeners()
+            initHandlers()
 
             if (checkPermissions()) {
                 if (isLocationEnabled()) {
-                    getCurrentLocation()
+                    startLocationUpdates()
+                    startTimeUpdates()
+                    startAnimation()
                 } else {
                     promptEnableLocation()
                 }
@@ -75,21 +91,89 @@ class gps : AppCompatActivity() {
     }
 
     private fun initViews() {
+        locationContainer = findViewById(R.id.location_card)
         tvLat = findViewById(R.id.tv_lat)
         tvLon = findViewById(R.id.tv_lon)
         tvAlt = findViewById(R.id.tv_alt)
         tvTime = findViewById(R.id.tv_time)
         btnRefresh = findViewById(R.id.btnRefresh)
+        locationContainer = findViewById(R.id.location_card)
     }
 
     private fun initLocationClient() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
     }
 
+    private fun initHandlers() {
+        locationHandler = Handler(Looper.getMainLooper())
+        timeHandler = Handler(Looper.getMainLooper())
+        animationHandler = Handler(Looper.getMainLooper())
+    }
+
     private fun setupClickListeners() {
         btnRefresh.setOnClickListener {
             getCurrentLocation()
+            updateCurrentTime()
         }
+    }
+
+    private fun startTimeUpdates() {
+
+        timeHandler.removeCallbacksAndMessages(null)
+
+
+        updateCurrentTime()
+
+
+        timeHandler.postDelayed(object : Runnable {
+            override fun run() {
+                updateCurrentTime()
+                timeHandler.postDelayed(this, timeUpdateInterval)
+            }
+        }, timeUpdateInterval)
+    }
+
+    private fun updateCurrentTime() {
+        runOnUiThread {
+            val currentTime = SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.getDefault())
+                .format(Date())
+            tvTime.text = "Время: $currentTime"
+        }
+    }
+
+    private fun startLocationUpdates() {
+        locationHandler.removeCallbacksAndMessages(null)
+        getCurrentLocation()
+        locationHandler.postDelayed(object : Runnable {
+            override fun run() {
+                getCurrentLocation()
+                locationHandler.postDelayed(this, locationUpdateInterval)
+            }
+        }, locationUpdateInterval)
+    }
+
+
+    private fun startAnimation() {
+        animationHandler.removeCallbacksAndMessages(null)
+        moveContainerRandomly()
+        animationHandler.postDelayed(object : Runnable {
+            override fun run() {
+                moveContainerRandomly()
+                animationHandler.postDelayed(this, locationUpdateInterval)
+            }
+        }, locationUpdateInterval)
+    }
+
+    private fun moveContainerRandomly() {
+        val random = Random
+
+        val yOffset = random.nextInt(201) - 100
+
+
+        locationContainer.animate()
+            .translationY(yOffset.toFloat())
+            .setDuration(1000)
+            .start()
     }
 
     private fun checkPermissions(): Boolean {
@@ -150,13 +234,11 @@ class gps : AppCompatActivity() {
             val lat = String.format(Locale.US, "%.6f", location.latitude)
             val lon = String.format(Locale.US, "%.6f", location.longitude)
             val alt = String.format(Locale.US, "%.1f", location.altitude)
-            val time = SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.getDefault())
-                .format(Date(location.time))
 
             tvLat.text = "Широта: $lat"
             tvLon.text = "Долгота: $lon"
             tvAlt.text = "Высота: $alt м"
-            tvTime.text = "Время: $time"
+
         }
     }
 
@@ -194,7 +276,16 @@ class gps : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         if (checkPermissions() && isLocationEnabled()) {
-            getCurrentLocation()
+            startLocationUpdates()
+            startTimeUpdates()
+            startAnimation()
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        locationHandler.removeCallbacksAndMessages(null)
+        timeHandler.removeCallbacksAndMessages(null)
+        animationHandler.removeCallbacksAndMessages(null)
     }
 }

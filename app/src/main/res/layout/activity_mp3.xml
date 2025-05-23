@@ -42,9 +42,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:weightSum="5"> <!-- Общий вес для всех элементов -->
+            android:weightSum="5">
 
-            <!-- Кнопки с одинаковым весом -->
+
             <Button
                 android:id="@+id/prevButton"
                 android:layout_width="0dp"
